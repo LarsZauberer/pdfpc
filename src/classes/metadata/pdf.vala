@@ -65,6 +65,11 @@ namespace pdfpc.Metadata {
          * Note
          */
         public SlideNote note;
+
+        /**
+         * Planned duration of the user slide in seconds; -1 if not set
+         */
+        public int planned_duration = -1;
     }
 
 
@@ -321,6 +326,7 @@ namespace pdfpc.Metadata {
 
                 // Only save pages with user-defined metadata
                 if (page.forced_overlay || page.hidden ||
+                    page.planned_duration >= 0 ||
                     (page.note != null    &&
                      !page.note.is_native &&
                      page.note.note_text != null)) {
@@ -345,6 +351,10 @@ namespace pdfpc.Metadata {
                         page.note.note_text != null) {
                         builder.set_member_name("note");
                         builder.add_string_value(page.note.note_text);
+                    }
+                    if (page.planned_duration >= 0) {
+                        builder.set_member_name("plannedDuration");
+                        builder.add_int_value(page.planned_duration);
                     }
                     builder.end_object();
                 }
@@ -380,6 +390,7 @@ namespace pdfpc.Metadata {
 	    unowned Json.Object obj = node.get_object();
             string page_label = "", note = "";
             int idx = -1, overlay = 0, slide_number = -1;
+            int planned_duration = -1;
             bool forced_overlay = false, hidden = false;
             foreach (unowned string name in obj.get_members()) {
                 unowned Json.Node item = obj.get_member(name);
@@ -401,6 +412,14 @@ namespace pdfpc.Metadata {
 		    break;
                 case "note":
 		    note = item.get_string();
+		    break;
+                case "plannedDuration":
+		    if (item.get_value_type() == typeof(int64) &&
+		        item.get_int() >= 0 && item.get_int() <= int.MAX) {
+		        planned_duration = (int) item.get_int();
+		    } else {
+		        GLib.printerr("Invalid plannedDuration, ignored\n");
+		    }
 		    break;
 		default:
                     GLib.printerr("Unknown page item \"%s\"\n", name);
@@ -440,6 +459,10 @@ namespace pdfpc.Metadata {
             }
             if (note != "") {
                 this.set_note(note, slide_number);
+            }
+            var page = this.get_page_meta(slide_number);
+            if (page != null) {
+                page.planned_duration = planned_duration;
             }
         }
 
@@ -996,6 +1019,7 @@ namespace pdfpc.Metadata {
          * Actual file loading, initialization, etc
          */
         public void load(string pdfFilename) {
+            this.overbooked_warned = false;
             var fname = pdfFilename;
             string cwd = GLib.Environment.get_current_dir();
             if (!GLib.Path.is_absolute(fname)) {
@@ -1184,6 +1208,62 @@ namespace pdfpc.Metadata {
             if (this.end_user_slide != slide) {
                 this.end_user_slide = slide;
                 this.dirty_state = true;
+            }
+        }
+
+        /**
+         * Set when the overbooked plan warning has been printed
+         */
+        private bool overbooked_warned = false;
+
+        /**
+         * Compute the planned start and end time (in seconds since the
+         * beginning of the talk) of the given user slide. Slides with a
+         * planned duration get exactly that time; the rest of the talk is
+         * split evenly among the others. Slides after the end slide get none.
+         * If several pages of a user slide carry a duration, the first wins.
+         */
+        public void get_planned_window(int user_slide, int duration,
+            out double start, out double end) {
+            int count = int.min(this.get_end_user_slide(),
+                this.get_user_slide_count() - 1) + 1;
+            int[] planned = new int[count];
+            for (int i = 0; i < count; i++) {
+                planned[i] = -1;
+            }
+            foreach (var page in this.pages) {
+                int s = page.user_slide;
+                if (s < count && planned[s] < 0) {
+                    planned[s] = page.planned_duration;
+                }
+            }
+
+            double timed_sum = 0;
+            int untimed_count = 0;
+            foreach (int d in planned) {
+                if (d >= 0) {
+                    timed_sum += d;
+                } else {
+                    untimed_count++;
+                }
+            }
+
+            if (timed_sum > duration && !this.overbooked_warned) {
+                GLib.printerr("Planned slide durations (%.0f s) exceed the talk duration (%d s)\n",
+                    timed_sum, duration);
+                this.overbooked_warned = true;
+            }
+            double untimed_share = untimed_count > 0 ?
+                double.max(0, duration - timed_sum)/untimed_count : 0;
+
+            start = 0;
+            end = 0;
+            for (int i = 0; i <= user_slide && i < count; i++) {
+                start = end;
+                end += planned[i] >= 0 ? planned[i] : untimed_share;
+            }
+            if (user_slide >= count) {
+                start = end;
             }
         }
 

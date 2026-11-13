@@ -361,12 +361,24 @@ an unnecessary distraction if you have been perfectly conveying the talk and the
 remaining time is adequate.
 .PP
 Contrary to that, in the new (default) mode, pdfpc tracks your progress
-continuously, calculating the expected time as
-(talk_duration)*(current_user_slide_number - 0.5)/(total_number_of_user_slides)
-and comparing it to the actual wall time since beginning of the talk.  If
-these two numbers differ by more than 60 seconds, the timer changes its color to
-either orange (indicating you need to speed up) or a blueish one (need to slow
-down).  Once the optimal progress is recovered, the timer becomes white again.
+continuously.  Each user slide gets a planned time window, by default an equal
+share of the talk duration.  If you are still on a slide more than 60 seconds
+after its window has ended, or reach it more than 60 seconds before its window
+starts, the timer changes its color to either orange (indicating you need to
+speed up) or a blueish one (need to slow down).  Once the optimal progress is
+recovered, the timer becomes white again.
+.PP
+Slides that need more or less time than the others can be given a planned
+duration (in seconds) with the "plannedDuration" key of their entry in the
+"pages" array of the .pdfpc file, e.g.
+.PP
+.nf
+  {"idx": 3, "label": "4", "overlay": 0, "plannedDuration": 300}
+.fi
+.PP
+Slides without a planned duration share the remaining talk time evenly.  If the
+planned durations exceed the talk duration, a warning is printed and the slides
+without one get no time.  Slides after the end slide are not taken into account.
 In this mode, the last-minutes option (-l) has no effect.  The previous
 behavior can be restored by setting the 'timer-pace-color' option to 'false' in
 the configuration file, see

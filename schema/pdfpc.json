@@ -132,6 +132,11 @@
             }
           ],
           "$comment": "The interpretation depends on disableMarkdown 1 level up"
+        },
+        "plannedDuration": {
+          "description": "Planned duration of the user slide, in seconds",
+          "type": "integer",
+          "minimum": 0
         }
       },
       "required": [

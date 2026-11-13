@@ -377,17 +377,17 @@ namespace pdfpc {
                     this.progress_status = ProgressStatus.Overtime;
                 } else if (Options.timer_pace_color) {
                     // Indication of too slow/fast pace independently
-                    // of the time left.
+                    // of the time left: the current slide has a planned
+                    // time window, and we are on pace as long as we stay
+                    // within it (plus some tolerance).
+                    double slide_start, slide_end;
+                    this.metadata.get_planned_window(
+                        this.current_user_slide_number, duration,
+                        out slide_start, out slide_end);
 
-                    // Assuming we're in the middle of the current slide
-                    double expected_progress =
-                        (this.current_user_slide_number + 0.5)/(this.metadata.get_end_user_slide() + 1);
-
-                    int expected_time = (int) (duration*expected_progress);
-
-                    if (talk_time > expected_time + 60) {
+                    if (talk_time > slide_end + 60) {
                         this.progress_status = ProgressStatus.Slow;
-                    } else if (talk_time < expected_time - 60) {
+                    } else if (talk_time < slide_start - 60) {
                         this.progress_status = ProgressStatus.Fast;
                     } else {
                         this.progress_status = ProgressStatus.Normal;
