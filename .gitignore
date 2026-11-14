@@ -2,3 +2,5 @@
 .*.swp
 build/
 CMakeUserPresets.json
+.direnv/
+/result*
