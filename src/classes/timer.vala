@@ -282,6 +282,13 @@ namespace pdfpc {
         }
 
         /**
+         * Time in seconds the talk has been running, 0 before it starts
+         */
+        public int get_talk_time() {
+            return this.running_time > 0 ? this.running_time : 0;
+        }
+
+        /**
          * Return true if the timer has been (manually) paused
          */
         public bool is_paused() {
@@ -317,7 +324,7 @@ namespace pdfpc {
         /**
          * Update and format time label
          */
-        protected void update() {
+        public void update() {
             // NB: running_time is negative if the talk begins in future
             switch (this.state) {
             case State.PreTalk:

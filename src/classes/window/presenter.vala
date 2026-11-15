@@ -85,6 +85,13 @@ namespace pdfpc.Window {
         protected Gtk.Label timer_label;
 
         /**
+         * Per-slide budget timer line above the main timer
+         */
+        protected Gtk.Box slide_timer_box;
+        protected Gtk.Label slide_timer_label;
+        protected Gtk.Label split_delta_label;
+
+        /**
          * Slide progress label ( eg. "23/42" )
          */
         protected Gtk.Entry slide_progress;
@@ -400,9 +407,11 @@ namespace pdfpc.Window {
          * Set font size for the timer & slide progress widgets
          **/
         private void resize_bottom_texts(int height) {
-            const string css_template = ".bottomText { font-size: %dpx; }";
-            int font_size = (int) (0.7*height);
-            var bottom_css = css_template.printf(font_size);
+            const string css_template = ".bottomText { font-size: %dpx; }" +
+                ".bottomText.compact { font-size: %dpx; }" +
+                ".slideTimerText { font-size: %dpx; }";
+            var bottom_css = css_template.printf((int) (0.7*height),
+                (int) (0.42*height), (int) (0.28*height));
 
             try {
                 this.bottom_text_css_provider.load_from_data(bottom_css, -1);
@@ -559,6 +568,7 @@ namespace pdfpc.Window {
                     }
 
                     this.timer_label.set_label(str);
+                    this.update_slide_timer();
                 });
             this.controller.reset_timer();
 
@@ -662,7 +672,24 @@ namespace pdfpc.Window {
             bottom_row.homogeneous = true;
 
             bottom_row.pack_start(this.status);
-            bottom_row.pack_start(this.timer_label);
+            this.slide_timer_label = new Gtk.Label("");
+            this.slide_timer_label.get_style_context().add_class("slideTimerText");
+            this.slide_timer_label.get_style_context().add_class("slide-timer");
+            this.split_delta_label = new Gtk.Label("");
+            this.split_delta_label.get_style_context().add_class("slideTimerText");
+            this.slide_timer_box = new Gtk.Box(Gtk.Orientation.HORIZONTAL, 0);
+            this.slide_timer_box.halign = Gtk.Align.CENTER;
+            this.slide_timer_box.pack_start(this.slide_timer_label, false, false);
+            this.slide_timer_box.pack_start(this.split_delta_label, false, false);
+            this.slide_timer_box.show_all();
+            this.slide_timer_box.no_show_all = true;
+            this.slide_timer_box.visible = this.controller.slide_timer_shown;
+
+            var timer_box = new Gtk.Box(Gtk.Orientation.VERTICAL, 0);
+            timer_box.valign = Gtk.Align.CENTER;
+            timer_box.pack_start(this.slide_timer_box, false, false);
+            timer_box.pack_start(this.timer_label, false, false);
+            bottom_row.pack_start(timer_box);
             bottom_row.pack_start(this.slide_progress);
             bottom_row.size_allocate.connect(this.on_bottom_resize);
 
@@ -722,10 +749,70 @@ namespace pdfpc.Window {
             this.overview.set_n_slides(this.controller.user_n_slides);
         }
 
+        /**
+         * Format seconds as m:ss
+         */
+        private static string format_mss(int secs) {
+            return "%d:%02d".printf(secs/60, secs%60);
+        }
+
+        /**
+         * Refresh the per-slide budget timer line
+         */
+        protected void update_slide_timer() {
+            if (this.slide_timer_box == null) {
+                // Not constructed yet
+                return;
+            }
+            bool shown = this.controller.slide_timer_shown;
+            this.slide_timer_box.visible = shown;
+            var timer_context = this.timer_label.get_style_context();
+            if (shown) {
+                timer_context.add_class("compact");
+            } else {
+                timer_context.remove_class("compact");
+                return;
+            }
+
+            int elapsed, budget;
+            this.controller.get_slide_timer(out elapsed, out budget);
+            var context = this.slide_timer_label.get_style_context();
+            if (budget >= 0) {
+                this.slide_timer_label.set_label(format_mss(elapsed) +
+                    " / " + format_mss(budget));
+                if (elapsed > budget) {
+                    context.add_class("over-budget");
+                } else {
+                    context.remove_class("over-budget");
+                }
+            } else {
+                this.slide_timer_label.set_label(format_mss(elapsed));
+                context.remove_class("over-budget");
+            }
+
+            context = this.split_delta_label.get_style_context();
+            context.remove_class("delta-ahead");
+            context.remove_class("delta-behind");
+            if (this.controller.has_split && budget >= 0) {
+                int delta = this.controller.split_delta;
+                if (delta > 0) {
+                    this.split_delta_label.set_label("   +" + format_mss(delta));
+                    context.add_class("delta-behind");
+                } else {
+                    this.split_delta_label.set_label("   -" + format_mss(-delta));
+                    context.add_class("delta-ahead");
+                }
+            } else {
+                this.split_delta_label.set_label("");
+            }
+        }
+
         public void update() {
             if (!this.metadata.is_ready) {
                 return;
             }
+
+            this.update_slide_timer();
 
             int current_slide_number = this.controller.current_slide_number;
             int current_user_slide_number =

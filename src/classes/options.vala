@@ -205,6 +205,11 @@ namespace pdfpc {
         public static bool timer_pace_color = true;
 
         /**
+         * Show the per-slide budget timer above the main timer
+         */
+        public static bool slide_timer = false;
+
+        /**
          * Time the talk should end
          */
         public static string? end_time = null;

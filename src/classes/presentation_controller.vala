@@ -107,6 +107,7 @@ namespace pdfpc {
 
             // clear the highlighted selection when switching to a new page
             if (this.current_user_slide_number != old_user_slide_number) {
+                this.on_user_slide_change(old_user_slide_number);
                 this.highlight.width = 0;
                 this.highlight.height = 0;
                 this.in_zoom = false;
@@ -128,6 +129,124 @@ namespace pdfpc {
         }
 
         public ProgressStatus progress_status { get; protected set; }
+
+        /**
+         * Whether the per-slide budget timer is shown
+         */
+        public bool slide_timer_shown { get; protected set; }
+
+        /**
+         * Seconds spent on each user slide so far, summed over all visits
+         */
+        protected int[] slide_time_spent = {};
+
+        /**
+         * Talk time at which the current user slide was entered
+         */
+        protected int slide_entered_at = 0;
+
+        /**
+         * Furthest user slide reached so far
+         */
+        protected int furthest_user_slide = 0;
+
+        /**
+         * Whether a split (reaching a new furthest slide) has happened
+         */
+        public bool has_split { get; protected set; default = false; }
+
+        /**
+         * Talk time minus the planned start of the slide reached at the
+         * last split; positive means behind the plan
+         */
+        public int split_delta { get; protected set; default = 0; }
+
+        /**
+         * Clear all per-slide timing data
+         */
+        protected void reset_slide_tracking() {
+            this.slide_time_spent = new int[int.max(this.user_n_slides, 1)];
+            this.slide_entered_at = this.timer.get_talk_time();
+            this.furthest_user_slide = this.current_user_slide_number;
+            this.has_split = false;
+            this.split_delta = 0;
+        }
+
+        /**
+         * Planned window of a user slide, false if the slide has no plan
+         */
+        protected bool get_slide_plan(int user_slide, out double start,
+            out double end) {
+            start = 0;
+            end = 0;
+            int duration = this.timer.duration;
+            int last = int.min(this.metadata.get_end_user_slide(),
+                this.metadata.get_user_slide_count() - 1);
+            if (duration <= 0 || user_slide < 0 || user_slide > last) {
+                return false;
+            }
+            this.metadata.get_planned_window(user_slide, duration,
+                out start, out end);
+            return true;
+        }
+
+        /**
+         * Book the time spent on the slide just left and record a split
+         * when a slide further than any before is reached
+         */
+        protected void on_user_slide_change(int old_user_slide) {
+            if (!this.timer.is_running() && !this.timer.is_paused()) {
+                // The talk has not begun (e.g. initial positioning)
+                this.reset_slide_tracking();
+                return;
+            }
+
+            int now = this.timer.get_talk_time();
+            if (old_user_slide >= 0 &&
+                old_user_slide < this.slide_time_spent.length) {
+                this.slide_time_spent[old_user_slide] +=
+                    now - this.slide_entered_at;
+            }
+            this.slide_entered_at = now;
+
+            int new_user_slide = this.current_user_slide_number;
+            if (new_user_slide > this.furthest_user_slide) {
+                this.furthest_user_slide = new_user_slide;
+                double start, end;
+                if (this.get_slide_plan(new_user_slide, out start, out end)) {
+                    this.split_delta = now - (int) start;
+                    this.has_split = true;
+                } else {
+                    this.has_split = false;
+                }
+            }
+        }
+
+        /**
+         * Time spent on the current user slide over all visits and its
+         * budget in seconds; budget is -1 if the slide has no plan
+         */
+        public void get_slide_timer(out int elapsed, out int budget) {
+            int slide = this.current_user_slide_number;
+            elapsed = this.timer.get_talk_time() - this.slide_entered_at;
+            if (slide >= 0 && slide < this.slide_time_spent.length) {
+                elapsed += this.slide_time_spent[slide];
+            }
+            double start, end;
+            if (this.get_slide_plan(slide, out start, out end)) {
+                budget = (int) (end - start);
+            } else {
+                budget = -1;
+            }
+        }
+
+        /**
+         * Toggle the visibility of the per-slide budget timer
+         */
+        public void toggle_slide_timer() {
+            this.slide_timer_shown = !this.slide_timer_shown;
+            this.controllables_update();
+        }
 
         public void start_autoadvance_timer(int slide_number) {
             // cancel any pending page advance (e.g., if going backwards
@@ -438,6 +557,8 @@ namespace pdfpc {
                     this.timer.change.connect(on_timer_change);
 
                     this.current_slide_number = 0;
+                    this.slide_timer_shown = Options.slide_timer;
+                    this.reset_slide_tracking();
 
                     this.pen_drawing = Drawings.create(metadata);
                     current_pen_drawing_tool = pen_drawing.pen;
@@ -1250,6 +1371,8 @@ namespace pdfpc {
                 "Reset the timer");
             add_action("cycleTimerMode", this.cycle_timer,
                 "Cycle the timer view");
+            add_action("toggleSlideTimer", this.toggle_slide_timer,
+                "Toggle the per-slide budget timer");
 
             add_action_with_parameter("windowed", GLib.VariantType.STRING,
                 this.toggle_windowed,
@@ -1981,6 +2104,9 @@ namespace pdfpc {
          */
         public void reset_timer() {
             this.timer.reset();
+            this.reset_slide_tracking();
+            // Refresh the labels with the cleared slide timing
+            this.timer.update();
         }
 
         /**
@@ -2013,6 +2139,8 @@ namespace pdfpc {
 
                 this.history_bck.clear();
                 this.history_fwd.clear();
+
+                this.reset_slide_tracking();
 
                 // Reset the drawing storage & clear the current drawings
                 this.pen_drawing.clear_storage();

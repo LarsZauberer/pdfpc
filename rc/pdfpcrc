@@ -75,6 +75,7 @@ bind s                  start
 bind p                  pause
 bind C+t                resetTimer
 bind S+t                cycleTimerMode
+bind l                  toggleSlideTimer
 
 # Presentation editing
 bind C+n                note

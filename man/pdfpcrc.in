@@ -195,6 +195,12 @@ Percentage of the height of the presenter screen left for the status area
 (timer, progress, icons), leaving (100 - status_height)% for the "main" area
 (int, Default is 10).
 .TP
+.B slide-timer
+Show the slide timer above the timer on startup (bool, Default is false).
+It can be toggled with the toggleSlideTimer action.  See the timer operation
+description in
+.B \fBpdfpc\fR(1).
+.TP
 .B switch-screens
 Switch the presentation and the presenter screen (bool, Default is false).
 .TP

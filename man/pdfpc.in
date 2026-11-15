@@ -274,6 +274,9 @@ Pause/continue timer
 Cycle between the timer view modes (count up/count down/current time), when
 applicable
 .TP
+.B l
+Toggle the slide timer shown above the timer
+.TP
 .B Ctrl + t
 Reset timer
 .TP
@@ -383,6 +386,15 @@ In this mode, the last-minutes option (-l) has no effect.  The previous
 behavior can be restored by setting the 'timer-pace-color' option to 'false' in
 the configuration file, see
 .B pdfpcrc(5).
+.PP
+A slide timer can be shown above the timer with the 'l' key or the
+'slide-timer' option.  It shows the time spent on the current user slide,
+summed over all visits, next to the planned duration of that slide, and turns
+orange once the slide is over its budget.  Whenever you reach a slide further
+than any before, it also shows how far you are ahead (green, minus) or behind
+(red, plus) the planned start of that slide.  This difference only changes on
+such slide changes.  Without a talk duration, or after the end slide, only the
+time spent on the slide is shown.
 .PP
 In any case as soon as the timer reaches the zero mark (00:00:00), it will turn red
 and count further down showing a negative time, to provide information on how

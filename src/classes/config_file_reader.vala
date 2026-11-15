@@ -367,6 +367,9 @@ namespace pdfpc {
                     bool timer_pace_color = bool.parse(fields[2]);
                     Options.timer_pace_color = timer_pace_color;
                     break;
+                case "slide-timer":
+                    Options.slide_timer = bool.parse(fields[2]);
+                    break;
                 case "toolbox":
                     Options.toolbox_shown = bool.parse(fields[2]);
                     break;

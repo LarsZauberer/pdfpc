@@ -82,3 +82,19 @@ paned separator {
 .too-slow {
     color: orange;
 }
+
+.slide-timer {
+    color: white;
+}
+
+.slide-timer.over-budget {
+    color: orange;
+}
+
+.delta-ahead {
+    color: green;
+}
+
+.delta-behind {
+    color: red;
+}
